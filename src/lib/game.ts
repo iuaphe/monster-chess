@@ -59,7 +59,10 @@ const repeatSymmetric = (from: Vector, dx: number, dy: number, maxN: number) => 
 	return uniqueVectors(result);
 };
 
-export const doubleMoves = (p: PieceType, from: Vector): { single: Vector[]; double: Vector[] } => {
+export const getDoubleMoves = (
+	p: PieceType,
+	from: Vector
+): { single: Vector[]; double: Vector[] } => {
 	const moves = p.moves(from);
 	const doubleMoves = uniqueVectors(moves.flatMap(p.moves));
 	let doubleMovesWithoutSingle = [];
@@ -86,6 +89,14 @@ class Rook extends PieceType {
 	}
 }
 export const rook = new Rook();
+
+class Knightrider extends PieceType {
+	id = 'n';
+	moves(from: Vector) {
+		return repeatSymmetric(from, 2, 1, Infinity);
+	}
+}
+export const knightrider = new Knightrider();
 
 class Knight extends PieceType {
 	id = 'n';
@@ -120,7 +131,7 @@ class Pawn extends PieceType {
 export const pawn = new Pawn();
 
 export class Piece {
-	constructor(public type: PieceType, public x: number, public y: number) {}
+	constructor(public type: PieceType, public position: Vector) {}
 }
 
-export const pieceTypes = [King, Rook].map((it) => new it());
+export const pieceTypes = [king, rook, knight, queen, bishop, pawn];
