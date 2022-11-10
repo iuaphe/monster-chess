@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { pieceTypes, getDoubleMoves, Piece, Vector, knight, king } from '../lib/game';
+	import {
+		pieceTypes,
+		getDoubleMoves,
+		Piece,
+		Vector,
+		knight,
+		king,
+		pawn,
+		queen,
+		Color
+	} from '../lib/game';
 	import { onMount } from 'svelte';
 
 	let canvas: HTMLCanvasElement;
@@ -8,18 +18,29 @@
 		const BOARD_SIZE = 1000;
 		const TILE_SIZE = BOARD_SIZE / 8;
 
-		const imageFromId = (id: string) => {
+		const generateImage = (id: string, color: Color) => {
 			const image = new Image();
-			image.src = `/images/w${id}.png`;
+			image.src = `/images/${color === Color.WHITE ? 'w' : 'b'}${id}.png`;
 			return image;
 		};
 
-		const pieceImages: Record<string, HTMLImageElement> = Object.assign(
+		const whitePieceImages: Record<string, HTMLImageElement> = Object.assign(
 			{},
 			...pieceTypes.map((type) => ({
-				[type.id]: imageFromId(type.id)
+				[type.id]: generateImage(type.id, Color.WHITE)
 			}))
 		);
+
+		const blackPieceImages: Record<string, HTMLImageElement> = Object.assign(
+			{},
+			...pieceTypes.map((type) => ({
+				[type.id]: generateImage(type.id, Color.BLACK)
+			}))
+		);
+
+		const getImage = (piece: Piece) => {
+			return (piece.color === Color.WHITE ? whitePieceImages : blackPieceImages)[piece.type.id];
+		};
 
 		canvas.width = BOARD_SIZE;
 		canvas.height = BOARD_SIZE;
@@ -74,8 +95,12 @@
 		};
 
 		let pieceIndex = 0;
-		const thePiece = new Piece(pieceTypes[pieceIndex], new Vector(0, 0));
-		const pieces: Piece[] = [thePiece];
+		// const thePiece = new Piece(pieceTypes[pieceIndex], Color.WHITE, new Vector(2, 2));
+		// const pieces: Piece[] = [thePiece, new Piece(queen, Color.BLACK, new Vector(3, 3))];
+
+		const pieces = pieceTypes.flatMap((type, x) =>
+			[Color.BLACK, Color.WHITE].map((color, y) => new Piece(type, color, new Vector(y, x)))
+		);
 
 		let selectedPiece: Piece | undefined = undefined;
 
@@ -102,7 +127,7 @@
 			pieces.forEach((piece) => {
 				if (piece !== selectedPiece)
 					ctx.drawImage(
-						pieceImages[piece.type.id],
+						getImage(piece),
 						piece.position.x * TILE_SIZE,
 						piece.position.y * TILE_SIZE,
 						TILE_SIZE,
@@ -110,10 +135,10 @@
 					);
 			});
 			if (selectedPiece !== undefined) {
-				const doubleMoves = getDoubleMoves(selectedPiece.type, selectedPiece.position);
+				const doubleMoves = getDoubleMoves(selectedPiece, pieces);
 				visMoves(doubleMoves.single, doubleMoves.double);
 				ctx.drawImage(
-					pieceImages[selectedPiece.type.id],
+					getImage(selectedPiece),
 					mousePosition.x - TILE_SIZE / 2,
 					mousePosition.y - TILE_SIZE / 2,
 					TILE_SIZE,
@@ -143,7 +168,7 @@
 					Math.floor(event.offsetX / TILE_SIZE),
 					Math.floor(event.offsetY / TILE_SIZE)
 				);
-				const dMoves = getDoubleMoves(selectedPiece.type, selectedPiece.position);
+				const dMoves = getDoubleMoves(selectedPiece, pieces);
 				if (
 					!tile.equals(selectedPiece.position) &&
 					(dMoves.single.some((m) => m.equals(tile)) || dMoves.double.some((m) => m.equals(tile)))
@@ -161,15 +186,15 @@
 		});
 
 		document.addEventListener('keydown', (event) => {
-			if (event.key === 'ArrowLeft') {
-				pieceIndex--;
-				if (pieceIndex < 0) pieceIndex += pieceTypes.length;
-				thePiece.type = pieceTypes[pieceIndex];
-			} else if (event.key === 'ArrowRight') {
-				pieceIndex++;
-				pieceIndex %= pieceTypes.length;
-				thePiece.type = pieceTypes[pieceIndex];
-			}
+			// if (event.key === 'ArrowLeft') {
+			// 	pieceIndex--;
+			// 	if (pieceIndex < 0) pieceIndex += pieceTypes.length;
+			// 	thePiece.type = pieceTypes[pieceIndex];
+			// } else if (event.key === 'ArrowRight') {
+			// 	pieceIndex++;
+			// 	pieceIndex %= pieceTypes.length;
+			// 	thePiece.type = pieceTypes[pieceIndex];
+			// }
 		});
 	});
 </script>
