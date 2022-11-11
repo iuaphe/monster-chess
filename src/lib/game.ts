@@ -14,7 +14,9 @@ export class Vector {
 abstract class PieceType {
 	abstract id: string;
 	abstract moves(from: Vector, board: Piece[], color: Color): Vector[];
-	takes: (from: Vector, board: Piece[], color: Color) => Vector[] = this.moves;
+	takes(from: Vector, board: Piece[], color: Color) {
+		return this.moves(from, board, color);
+	}
 }
 
 export enum Color {
@@ -28,8 +30,9 @@ const repeat = (from: Vector, dx: number, dy: number, maxN: number, board: Piece
 	const result: Vector[] = [];
 	let v = from.add(dx, dy);
 	let n = 0;
-	while (inBounds(v) && n < maxN && !board.some((piece) => piece.position.equals(v))) {
+	while (inBounds(v) && n < maxN) {
 		result.push(v);
+		if (board.some((piece) => piece.position.equals(v))) break;
 		v = v.add(dx, dy);
 		n++;
 	}
@@ -64,14 +67,49 @@ const repeatSymmetric = (from: Vector, dx: number, dy: number, maxN: number, boa
 	return uniqueVectors(result);
 };
 
+// todo: make better
+const trueMoves = (moves: Vector[], board: Piece[]) => {
+	return moves.filter((move) => !board.some((piece) => piece.position.equals(move)));
+};
+
+const trueTakes = (moves: Vector[], board: Piece[]) => {
+	return moves.filter((move) => board.some((piece) => piece.position.equals(move)));
+};
+
+export const getDoubleTakes = (
+	piece: Piece,
+	board: Piece[]
+): { single: Vector[]; double: Vector[] } => {
+	const moves = trueTakes(piece.type.takes(piece.position, board, piece.color), board);
+	// todo: fix
+	const doubleMoves = uniqueVectors(
+		moves.flatMap((move) =>
+			trueTakes(piece.type.takes(move, board, piece.color), board).concat(
+				trueMoves(piece.type.moves(move, board, piece.color), board)
+			)
+		)
+	);
+	let doubleMovesWithoutSingle = [];
+	for (const move of doubleMoves)
+		if (!moves.some((v) => move.equals(v))) doubleMovesWithoutSingle.push(move);
+	return {
+		single: moves,
+		double: doubleMovesWithoutSingle.filter((m) => !m.equals(piece.position))
+	};
+};
+
 export const getDoubleMoves = (
 	piece: Piece,
 	board: Piece[]
 ): { single: Vector[]; double: Vector[] } => {
-	const moves = piece.type.moves(piece.position, board, piece.color);
+	const moves = trueMoves(piece.type.moves(piece.position, board, piece.color), board);
 	// todo: fix
 	const doubleMoves = uniqueVectors(
-		moves.flatMap((move) => piece.type.moves(move, board, piece.color))
+		moves.flatMap((move) =>
+			trueMoves(piece.type.moves(move, board, piece.color), board).concat(
+				trueTakes(piece.type.takes(move, board, piece.color), board)
+			)
+		)
 	);
 	let doubleMovesWithoutSingle = [];
 	for (const move of doubleMoves)
@@ -140,6 +178,11 @@ class Pawn extends PieceType {
 			from.y === (color === Color.WHITE ? 6 : 1) ? 2 : 1,
 			board
 		);
+	}
+	override takes(from: Vector, board: Piece[], color: Color) {
+		return color === Color.WHITE
+			? [from.add(-1, -1), from.add(1, -1)]
+			: [from.add(-1, 1), from.add(1, 1)];
 	}
 }
 export const pawn = new Pawn();

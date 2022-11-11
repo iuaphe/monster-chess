@@ -8,7 +8,10 @@
 		king,
 		pawn,
 		queen,
-		Color
+		Color,
+		rook,
+		bishop,
+		getDoubleTakes
 	} from '../lib/game';
 	import { onMount } from 'svelte';
 
@@ -77,32 +80,76 @@
 					TILE_SIZE / 5,
 					(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
 				);
-				drawCircle(
-					move.x,
-					move.y,
-					TILE_SIZE / 10,
-					(move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5'
-				);
+				if (gameState == GameState.WHITE_FIRST)
+					drawCircle(
+						move.x,
+						move.y,
+						TILE_SIZE / 10,
+						(move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5'
+					);
 			});
-			double.forEach((move) => {
-				drawCircle(
-					move.x,
-					move.y,
-					TILE_SIZE / 5,
-					(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
-				);
-			});
+			if (gameState == GameState.WHITE_FIRST)
+				double.forEach((move) => {
+					drawCircle(
+						move.x,
+						move.y,
+						TILE_SIZE / 5,
+						(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
+					);
+				});
 		};
 
-		let pieceIndex = 0;
-		// const thePiece = new Piece(pieceTypes[pieceIndex], Color.WHITE, new Vector(2, 2));
-		// const pieces: Piece[] = [thePiece, new Piece(queen, Color.BLACK, new Vector(3, 3))];
+		const visTakes = (single: Vector[], double: Vector[]) => {
+			single.forEach((move) => {
+				if (gameState == GameState.WHITE_FIRST) {
+					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
+					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5';
+					ctx.fillRect(
+						move.x * TILE_SIZE + TILE_SIZE / 15,
+						move.y * TILE_SIZE + TILE_SIZE / 15,
+						TILE_SIZE - (2 * TILE_SIZE) / 15,
+						TILE_SIZE - (2 * TILE_SIZE) / 15
+					);
+				} else {
+					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
+					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+				}
+			});
+			if (gameState == GameState.WHITE_FIRST)
+				double.forEach((move) => {
+					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
+					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+				});
+		};
 
-		const pieces = pieceTypes.flatMap((type, x) =>
-			[Color.BLACK, Color.WHITE].map((color, y) => new Piece(type, color, new Vector(y, x)))
-		);
+		const range = (from: number, to: number): number[] => {
+			return [...Array(to - from).keys()].map((x) => x + from);
+		};
+
+		const pieces = [
+			...range(0, 8).map((x) => new Piece(pawn, Color.BLACK, new Vector(x, 1))),
+			...[rook, knight, bishop, queen, king, bishop, knight, rook].map(
+				(type, x) => new Piece(type, Color.BLACK, new Vector(x, 0))
+			),
+
+			...range(2, 6).map((x) => new Piece(pawn, Color.WHITE, new Vector(x, 6))),
+			new Piece(king, Color.WHITE, new Vector(4, 7))
+		];
 
 		let selectedPiece: Piece | undefined = undefined;
+		let selectedMovesSingle: Vector[] | undefined = undefined;
+		let selectedMovesDouble: Vector[] | undefined = undefined;
+		let selectedTakesSingle: Vector[] | undefined = undefined;
+		let selectedTakesDouble: Vector[] | undefined = undefined;
+
+		enum GameState {
+			WHITE_FIRST,
+			WHITE_SECOND,
+			BLACK
+		}
+
+		let gameState = GameState.WHITE_FIRST;
 
 		let lastMove: [Vector, Vector] | undefined = undefined;
 
@@ -124,6 +171,10 @@
 			// 		ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
 			// 	});
 			// }
+			if (selectedPiece !== undefined) {
+				visMoves(selectedMovesSingle!, selectedMovesDouble!);
+				visTakes(selectedTakesSingle!, selectedTakesDouble!);
+			}
 			pieces.forEach((piece) => {
 				if (piece !== selectedPiece)
 					ctx.drawImage(
@@ -135,8 +186,6 @@
 					);
 			});
 			if (selectedPiece !== undefined) {
-				const doubleMoves = getDoubleMoves(selectedPiece, pieces);
-				visMoves(doubleMoves.single, doubleMoves.double);
 				ctx.drawImage(
 					getImage(selectedPiece),
 					mousePosition.x - TILE_SIZE / 2,
@@ -152,15 +201,36 @@
 		const mousePosition = new Vector(0, 0);
 
 		canvas.addEventListener('mousedown', (event) => {
-			const tile = new Vector(
-				Math.floor(event.offsetX / TILE_SIZE),
-				Math.floor(event.offsetY / TILE_SIZE)
-			);
-			const piece = pieces.find((piece) => piece.position.equals(tile));
-			if (piece !== undefined) {
-				selectedPiece = piece;
+			if (event.button === 0) {
+				const tile = new Vector(
+					Math.floor(event.offsetX / TILE_SIZE),
+					Math.floor(event.offsetY / TILE_SIZE)
+				);
+				const piece = pieces.find((piece) => piece.position.equals(tile));
+				if (
+					piece !== undefined &&
+					((piece.color === Color.WHITE &&
+						(gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND)) ||
+						(piece.color === Color.BLACK && gameState === GameState.BLACK))
+				) {
+					selectedPiece = piece;
+					const moves = getDoubleMoves(selectedPiece, pieces);
+					selectedMovesSingle = moves.single;
+					selectedMovesDouble = moves.double;
+					const takes = getDoubleTakes(selectedPiece, pieces);
+					console.log(takes);
+					selectedTakesSingle = takes.single;
+					selectedTakesDouble = takes.double;
+				}
+			} else if (event.button === 2) {
+				selectedPiece = undefined;
 			}
 		});
+
+		// implies statements
+		// const x: number | undefined;
+		// const y: number | undefined;
+		// x === undefined <-> y === undefined
 
 		canvas.addEventListener('mouseup', (event) => {
 			if (selectedPiece !== undefined) {
@@ -168,17 +238,20 @@
 					Math.floor(event.offsetX / TILE_SIZE),
 					Math.floor(event.offsetY / TILE_SIZE)
 				);
-				const dMoves = getDoubleMoves(selectedPiece, pieces);
-				if (
-					!tile.equals(selectedPiece.position) &&
-					(dMoves.single.some((m) => m.equals(tile)) || dMoves.double.some((m) => m.equals(tile)))
-				) {
+				const singleMove = selectedMovesSingle!.some((m) => m.equals(tile));
+				const doubleMove = selectedMovesDouble!.some((m) => m.equals(tile));
+				if (!tile.equals(selectedPiece.position) && (singleMove || doubleMove)) {
 					lastMove = [selectedPiece.position, tile];
 					selectedPiece.position = tile;
+					gameState++;
+					if (doubleMove) gameState++;
+					gameState %= 3;
 				}
 				selectedPiece = undefined;
 			}
 		});
+
+		canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
 		document.addEventListener('mousemove', (event) => {
 			mousePosition.x = event.offsetX;
