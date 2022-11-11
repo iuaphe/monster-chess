@@ -14,9 +14,6 @@ export class Vector {
 abstract class PieceType {
 	abstract id: string;
 	abstract moves(from: Vector, board: Piece[], color: Color): Vector[];
-	takes(from: Vector, board: Piece[], color: Color) {
-		return this.moves(from, board, color);
-	}
 }
 
 export enum Color {
@@ -26,13 +23,27 @@ export enum Color {
 
 export const inBounds = (v: Vector) => 0 <= v.x && v.x < 8 && 0 <= v.y && v.y < 8;
 
-const repeat = (from: Vector, dx: number, dy: number, maxN: number, board: Piece[]) => {
+const repeat = (
+	from: Vector,
+	dx: number,
+	dy: number,
+	maxN: number,
+	board: Piece[],
+	color: Color,
+	includesTakes: boolean
+) => {
 	const result: Vector[] = [];
 	let v = from.add(dx, dy);
 	let n = 0;
 	while (inBounds(v) && n < maxN) {
+		const onPiece = board.find((piece) => piece.position.equals(v));
+		if (onPiece !== undefined) {
+			if (includesTakes && onPiece.color != color) {
+				result.push(v);
+			}
+			break;
+		}
 		result.push(v);
-		if (board.some((piece) => piece.position.equals(v))) break;
 		v = v.add(dx, dy);
 		n++;
 	}
@@ -47,7 +58,15 @@ export const uniqueVectors = (vs: Vector[]) => {
 	return result;
 };
 
-const repeatSymmetric = (from: Vector, dx: number, dy: number, maxN: number, board: Piece[]) => {
+const repeatSymmetric = (
+	from: Vector,
+	dx: number,
+	dy: number,
+	maxN: number,
+	board: Piece[],
+	color: Color,
+	includesTakes: boolean
+) => {
 	let result: Vector[] = [];
 	const combinations: [number, number][] = [
 		[dx, dy],
@@ -60,56 +79,20 @@ const repeatSymmetric = (from: Vector, dx: number, dy: number, maxN: number, boa
 		[-dy, -dx]
 	];
 	combinations.forEach((dr) => {
-		result = result.concat(repeat(from, ...dr, maxN, board));
+		result = result.concat(repeat(from, ...dr, maxN, board, color, includesTakes));
 	});
 	// todo: take out the redundant combinations so we don't have to uniqueify
 	// e.g., (0, 1) == (-0, 1)
 	return uniqueVectors(result);
 };
 
-// todo: make better
-const trueMoves = (moves: Vector[], board: Piece[]) => {
-	return moves.filter((move) => !board.some((piece) => piece.position.equals(move)));
-};
-
-const trueTakes = (moves: Vector[], board: Piece[]) => {
-	return moves.filter((move) => board.some((piece) => piece.position.equals(move)));
-};
-
-export const getDoubleTakes = (
-	piece: Piece,
-	board: Piece[]
-): { single: Vector[]; double: Vector[] } => {
-	const moves = trueTakes(piece.type.takes(piece.position, board, piece.color), board);
-	// todo: fix
-	const doubleMoves = uniqueVectors(
-		moves.flatMap((move) =>
-			trueTakes(piece.type.takes(move, board, piece.color), board).concat(
-				trueMoves(piece.type.moves(move, board, piece.color), board)
-			)
-		)
-	);
-	let doubleMovesWithoutSingle = [];
-	for (const move of doubleMoves)
-		if (!moves.some((v) => move.equals(v))) doubleMovesWithoutSingle.push(move);
-	return {
-		single: moves,
-		double: doubleMovesWithoutSingle.filter((m) => !m.equals(piece.position))
-	};
-};
-
 export const getDoubleMoves = (
 	piece: Piece,
 	board: Piece[]
 ): { single: Vector[]; double: Vector[] } => {
-	const moves = trueMoves(piece.type.moves(piece.position, board, piece.color), board);
-	// todo: fix
+	const moves = piece.type.moves(piece.position, board, piece.color);
 	const doubleMoves = uniqueVectors(
-		moves.flatMap((move) =>
-			trueMoves(piece.type.moves(move, board, piece.color), board).concat(
-				trueTakes(piece.type.takes(move, board, piece.color), board)
-			)
-		)
+		moves.flatMap((move) => piece.type.moves(move, board, piece.color))
 	);
 	let doubleMovesWithoutSingle = [];
 	for (const move of doubleMoves)
@@ -123,7 +106,9 @@ export const getDoubleMoves = (
 class King extends PieceType {
 	id = 'k';
 	moves(from: Vector, board: Piece[], color: Color) {
-		return repeatSymmetric(from, 1, 1, 1, board).concat(repeatSymmetric(from, 1, 0, 1, board));
+		return repeatSymmetric(from, 1, 1, 1, board, color, true).concat(
+			repeatSymmetric(from, 1, 0, 1, board, color, true)
+		);
 	}
 }
 export const king = new King();
@@ -131,7 +116,7 @@ export const king = new King();
 class Rook extends PieceType {
 	id = 'r';
 	moves(from: Vector, board: Piece[], color: Color) {
-		return repeatSymmetric(from, 1, 0, Infinity, board);
+		return repeatSymmetric(from, 1, 0, Infinity, board, color, true);
 	}
 }
 export const rook = new Rook();
@@ -139,7 +124,7 @@ export const rook = new Rook();
 class Knightrider extends PieceType {
 	id = 'n';
 	moves(from: Vector, board: Piece[], color: Color) {
-		return repeatSymmetric(from, 2, 1, Infinity, board);
+		return repeatSymmetric(from, 2, 1, Infinity, board, color, true);
 	}
 }
 export const knightrider = new Knightrider();
@@ -147,7 +132,7 @@ export const knightrider = new Knightrider();
 class Knight extends PieceType {
 	id = 'n';
 	moves(from: Vector, board: Piece[], color: Color) {
-		return repeatSymmetric(from, 2, 1, 1, board);
+		return repeatSymmetric(from, 2, 1, 1, board, color, true);
 	}
 }
 export const knight = new Knight();
@@ -155,7 +140,7 @@ export const knight = new Knight();
 class Bishop extends PieceType {
 	id = 'b';
 	moves(from: Vector, board: Piece[], color: Color) {
-		return repeatSymmetric(from, 1, 1, Infinity, board);
+		return repeatSymmetric(from, 1, 1, Infinity, board, color, true);
 	}
 }
 export const bishop = new Bishop();
@@ -168,6 +153,11 @@ class Queen extends PieceType {
 }
 export const queen = new Queen();
 
+const takes = (moves: Vector[], board: Piece[], color: Color): Vector[] =>
+	moves.filter((move) =>
+		board.some((piece) => piece.position.equals(move) && piece.color != color)
+	);
+
 class Pawn extends PieceType {
 	id = 'p';
 	moves(from: Vector, board: Piece[], color: Color) {
@@ -176,13 +166,18 @@ class Pawn extends PieceType {
 			0,
 			color === Color.WHITE ? -1 : 1,
 			from.y === (color === Color.WHITE ? 6 : 1) ? 2 : 1,
-			board
+			board,
+			color,
+			false
+		).concat(
+			takes(
+				color === Color.WHITE
+					? [from.add(-1, -1), from.add(1, -1)]
+					: [from.add(-1, 1), from.add(1, 1)],
+				board,
+				color
+			)
 		);
-	}
-	override takes(from: Vector, board: Piece[], color: Color) {
-		return color === Color.WHITE
-			? [from.add(-1, -1), from.add(1, -1)]
-			: [from.add(-1, 1), from.add(1, 1)];
 	}
 }
 export const pawn = new Pawn();

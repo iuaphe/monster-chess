@@ -10,15 +10,15 @@
 		queen,
 		Color,
 		rook,
-		bishop,
-		getDoubleTakes
+		bishop
 	} from '../lib/game';
 	import { onMount } from 'svelte';
+	import '../lib/styles/global.css';
 
 	let canvas: HTMLCanvasElement;
 
 	onMount(() => {
-		const BOARD_SIZE = 1000;
+		const BOARD_SIZE = window.innerHeight;
 		const TILE_SIZE = BOARD_SIZE / 8;
 
 		const generateImage = (id: string, color: Color) => {
@@ -200,6 +200,19 @@
 
 		const mousePosition = new Vector(0, 0);
 
+		const partitionMoves = (moves: Vector[]): [Vector[], Vector[]] => {
+			const moveMoves: Vector[] = []; // todo: less lame name
+			const takes: Vector[] = [];
+			moves.forEach((move) => {
+				if (pieces.some((piece) => piece.position.equals(move))) {
+					takes.push(move);
+				} else {
+					moveMoves.push(move);
+				}
+			});
+			return [moveMoves, takes];
+		};
+
 		canvas.addEventListener('mousedown', (event) => {
 			if (event.button === 0) {
 				const tile = new Vector(
@@ -215,12 +228,8 @@
 				) {
 					selectedPiece = piece;
 					const moves = getDoubleMoves(selectedPiece, pieces);
-					selectedMovesSingle = moves.single;
-					selectedMovesDouble = moves.double;
-					const takes = getDoubleTakes(selectedPiece, pieces);
-					console.log(takes);
-					selectedTakesSingle = takes.single;
-					selectedTakesDouble = takes.double;
+					[selectedMovesSingle, selectedTakesSingle] = partitionMoves(moves.single);
+					[selectedMovesDouble, selectedTakesDouble] = partitionMoves(moves.double);
 				}
 			} else if (event.button === 2) {
 				selectedPiece = undefined;
@@ -240,11 +249,20 @@
 				);
 				const singleMove = selectedMovesSingle!.some((m) => m.equals(tile));
 				const doubleMove = selectedMovesDouble!.some((m) => m.equals(tile));
-				if (!tile.equals(selectedPiece.position) && (singleMove || doubleMove)) {
+				const singleTake = selectedTakesSingle!.some((m) => m.equals(tile));
+				const doubleTake = selectedTakesDouble!.some((m) => m.equals(tile));
+				if (
+					!tile.equals(selectedPiece.position) &&
+					(singleMove || doubleMove || singleTake || doubleTake)
+				) {
 					lastMove = [selectedPiece.position, tile];
+					if (singleTake || doubleTake) {
+						const pieceAt = pieces.find((piece) => piece.position.equals(tile))!;
+						pieces.splice(pieces.indexOf(pieceAt), 1);
+					}
 					selectedPiece.position = tile;
 					gameState++;
-					if (doubleMove) gameState++;
+					if (doubleMove || doubleTake) gameState++;
 					gameState %= 3;
 				}
 				selectedPiece = undefined;
