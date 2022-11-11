@@ -14,6 +14,7 @@
 	} from '../lib/game';
 	import { onMount } from 'svelte';
 	import '../lib/styles/global.css';
+	import { base } from '$app/paths';
 
 	let canvas: HTMLCanvasElement;
 
@@ -23,7 +24,7 @@
 
 		const generateImage = (id: string, color: Color) => {
 			const image = new Image();
-			image.src = `/images/${color === Color.WHITE ? 'w' : 'b'}${id}.png`;
+			image.src = `${base}/images/${color === Color.WHITE ? 'w' : 'b'}${id}.png`;
 			return image;
 		};
 
