@@ -12,7 +12,10 @@ const config = {
 			fallback: 'index.html',
 			pages: 'docs',
 			assets: 'docs'
-		})
+		}),
+		paths: {
+			base: '/monster-chess'
+		}
 	}
 };
 
