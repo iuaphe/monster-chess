@@ -11,7 +11,7 @@ export class Vector {
 	}
 }
 
-abstract class PieceType {
+export abstract class PieceType {
 	abstract id: string;
 	abstract moves(from: Vector, board: Piece[], color: Color): Vector[];
 }

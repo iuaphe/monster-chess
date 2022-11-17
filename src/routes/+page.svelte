@@ -10,13 +10,34 @@
 		queen,
 		Color,
 		rook,
-		bishop
+		bishop,
+		PieceType
 	} from '../lib/game';
 	import { onMount } from 'svelte';
 	import '../lib/styles/global.css';
 	import { base } from '$app/paths';
 
+	// todo: split this file up. it's getting to be a bit much.
+
 	let canvas: HTMLCanvasElement;
+
+	enum GameState {
+		WHITE_FIRST,
+		WHITE_SECOND,
+		BLACK
+	}
+
+	let gameState = GameState.WHITE_FIRST;
+
+	const nextGameState = () => {
+		gameState++;
+		gameState %= 3;
+	};
+
+	$: r = [0.4, 0.2, 0][gameState];
+
+	let turnIndicatorWhite: SVGCircleElement;
+	let turnIndicatorBlack: SVGCircleElement;
 
 	onMount(() => {
 		const BOARD_SIZE = window.innerHeight;
@@ -143,15 +164,6 @@
 		let selectedMovesDouble: Vector[] | undefined = undefined;
 		let selectedTakesSingle: Vector[] | undefined = undefined;
 		let selectedTakesDouble: Vector[] | undefined = undefined;
-
-		enum GameState {
-			WHITE_FIRST,
-			WHITE_SECOND,
-			BLACK
-		}
-
-		let gameState = GameState.WHITE_FIRST;
-
 		let lastMove: [Vector, Vector] | undefined = undefined;
 
 		const update = () => {
@@ -231,6 +243,8 @@
 					const moves = getDoubleMoves(selectedPiece, pieces);
 					[selectedMovesSingle, selectedTakesSingle] = partitionMoves(moves.single);
 					[selectedMovesDouble, selectedTakesDouble] = partitionMoves(moves.double);
+				} else if (boardMode === BoardMode.EDIT) {
+					pieces.push(new Piece(pieceTypes[selectedEditPiece], selectedColor, tile));
 				}
 			} else if (event.button === 2) {
 				selectedPiece = undefined;
@@ -289,6 +303,69 @@
 			// }
 		});
 	});
+
+	enum BoardMode {
+		ANALYSIS,
+		EDIT
+	}
+
+	let boardMode = BoardMode.ANALYSIS;
+	let selectedEditPiece: number = 0;
+	let selectedColor: Color = Color.WHITE;
+
+	const toggleColor = () => {
+		selectedColor++;
+		selectedColor %= 2;
+	};
+
+	const toggleMode = () => {
+		boardMode++;
+		boardMode %= 2;
+	};
 </script>
 
 <canvas bind:this={canvas} />
+{#if boardMode === BoardMode.EDIT}
+	<div class="toolbar">
+		<img
+			src="{base}/images/edit.svg"
+			alt="A pencil."
+			on:mousedown={toggleMode}
+			on:keydown={toggleMode}
+		/>
+		<img
+			src="{base}/images/palette.svg"
+			alt="A color palette."
+			on:mousedown={toggleColor}
+			on:keydown={toggleColor}
+		/>
+		{#each pieceTypes as pt, i}
+			<img
+				src={`${base}/images/${selectedColor === Color.WHITE ? 'w' : 'b'}${pt.id}.png`}
+				alt=""
+				class:selected={i === selectedEditPiece}
+				on:mousedown={() => {
+					selectedEditPiece = i;
+				}}
+				on:keydown={() => {
+					selectedEditPiece = i;
+				}}
+			/>
+		{/each}
+	</div>
+{:else}
+	<div class="toolbar">
+		<img
+			src="{base}/images/search.svg"
+			alt="A magnifying glass."
+			on:mousedown={toggleMode}
+			on:keydown={toggleMode}
+		/>
+		<div class="turn-indicator" on:click={nextGameState} on:keydown={nextGameState}>
+			<svg viewBox="0 0 1 1">
+				<circle cx="0.5" cy="0.5" r="0.4" fill="black" bind:this={turnIndicatorBlack} />
+				<circle cx="0.5" cy="0.5" {r} fill="white" bind:this={turnIndicatorWhite} />
+			</svg>
+		</div>
+	</div>
+{/if}

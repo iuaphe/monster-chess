@@ -7,3 +7,30 @@ canvas {
 	display: block;
 	margin: auto;
 }
+
+.toolbar {
+	position: absolute;
+	left: calc(100vh + (100vw - 100vh) / 2);
+	top: 0;
+	padding: 20px;
+	color: white;
+}
+
+.toolbar * {
+	display: block;
+	height: 75px;
+	border: 3px solid transparent;
+	border-radius: 10px;
+}
+
+.toolbar *:hover {
+	background-color: rgb(63, 63, 63);
+}
+
+.selected {
+	border: 3px solid white !important;
+}
+
+.turn-indicator circle {
+	transition: r 1s;
+}
