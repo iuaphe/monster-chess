@@ -41,6 +41,23 @@
 		const BOARD_SIZE = window.innerHeight;
 		const TILE_SIZE = BOARD_SIZE / 8;
 
+		const MY_COLOR: Color = parseInt(window.location.search.split('=')[1] ?? '0') as Color;
+
+		const ws = new WebSocket('wss://monster-server.loca.lt/');
+		ws.onmessage = (ev) => {
+			const move = (ev.data as string).split(' ');
+			if (move[0] === 'MOVE') {
+				const arr = move.slice(1).map((n) => parseInt(n));
+				const [x1, y1, x2, y2, n] = move.slice(1).map((n) => parseInt(n));
+				board.move(new Vector(x1, y1), new Vector(x2, y2));
+				gameState += n;
+				gameState %= 3;
+			} else {
+				const [x1, y1] = move.slice(1).map((n) => parseInt(n));
+				board.removePiece(board.pieceAt(new Vector(x1, y1))!);
+			}
+		};
+
 		const generateImage = (id: string, color: Color) => {
 			const image = new Image();
 			image.src = `${base}/images/${color === Color.WHITE ? 'w' : 'b'}${id}.png`;
@@ -141,7 +158,7 @@
 			return [...Array(to - from).keys()].map((x) => x + from);
 		};
 
-		const board = new Board([
+		let board: Board = new Board([
 			...range(0, 8).map((x) => new Piece(pawn, Color.BLACK, new Vector(x, 1))),
 			...[rook, knight, bishop, queen, king, bishop, knight, rook].map(
 				(type, x) => new Piece(type, Color.BLACK, new Vector(x, 0))
@@ -290,6 +307,9 @@
 				if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					if (singleMove !== undefined) {
+						ws.send(
+							`MOVE ${selectedPiece.position.x} ${selectedPiece.position.y} ${singleMove.x} ${singleMove.y} 1`
+						);
 						board.move(selectedPiece.position, singleMove);
 						gameState++;
 					}
@@ -297,13 +317,23 @@
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					const doubleMove = doubleMoves.find((move) => move.finalPosition.equals(tile));
 					if (singleMove !== undefined) {
+						ws.send(
+							`MOVE ${selectedPiece.position.x} ${selectedPiece.position.y} ${singleMove.x} ${singleMove.y} 1`
+						);
 						board.move(selectedPiece.position, singleMove);
 						gameState++;
 					} else if (doubleMove !== undefined) {
 						if (doubleMove.takes !== undefined) {
+							ws.send(
+								`MOVE ${selectedPiece.position.x} ${selectedPiece.position.y} ${doubleMove.finalPosition.x} ${doubleMove.finalPosition.y} 2`
+							);
+							ws.send(`TAKE ${doubleMove.takes.x} ${doubleMove.takes.y}`);
 							board.move(selectedPiece.position, doubleMove.takes);
 							board.move(doubleMove.takes, doubleMove.finalPosition);
 						} else {
+							ws.send(
+								`MOVE ${selectedPiece.position.x} ${selectedPiece.position.y} ${doubleMove.finalPosition.x} ${doubleMove.finalPosition.y} 2`
+							);
 							board.move(selectedPiece.position, doubleMove.finalPosition);
 						}
 						gameState += 2;
@@ -355,47 +385,3 @@
 </script>
 
 <canvas bind:this={canvas} />
-{#if boardMode === BoardMode.EDIT}
-	<div class="toolbar">
-		<img
-			src="{base}/images/edit.svg"
-			alt="A pencil."
-			on:mousedown={toggleMode}
-			on:keydown={toggleMode}
-		/>
-		<img
-			src="{base}/images/palette.svg"
-			alt="A color palette."
-			on:mousedown={toggleColor}
-			on:keydown={toggleColor}
-		/>
-		{#each pieceTypes as pt, i}
-			<img
-				src={`${base}/images/${selectedColor === Color.WHITE ? 'w' : 'b'}${pt.id}.png`}
-				alt=""
-				class:selected={i === selectedEditPiece}
-				on:mousedown={() => {
-					selectedEditPiece = i;
-				}}
-				on:keydown={() => {
-					selectedEditPiece = i;
-				}}
-			/>
-		{/each}
-	</div>
-{:else}
-	<div class="toolbar">
-		<img
-			src="{base}/images/search.svg"
-			alt="A magnifying glass."
-			on:mousedown={toggleMode}
-			on:keydown={toggleMode}
-		/>
-		<div class="turn-indicator" on:click={nextGameState} on:keydown={nextGameState}>
-			<svg viewBox="0 0 1 1">
-				<circle cx="0.5" cy="0.5" r="0.4" fill="black" />
-				<circle cx="0.5" cy="0.5" {r} fill="white" />
-			</svg>
-		</div>
-	</div>
-{/if}

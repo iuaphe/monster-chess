@@ -244,7 +244,6 @@ export class Piece {
 		const candidateDoubleMoves = singleMoves.flatMap((singleMove) => {
 			const takes = board.pieceAt(singleMove)?.position;
 			const newBoard = board.copyWithMove(this.position, singleMove);
-			console.log(singleMove);
 			const newPiece = newBoard.pieceAt(singleMove)!;
 			return newPiece.moves(newBoard).map(
 				(secondMove) =>
