@@ -48,6 +48,32 @@ export class Board {
 		board.move(from, to);
 		return board;
 	}
+
+	legalState(turn: Color) {
+		const blackPieces = this.pieces.filter((piece) => piece.color === Color.BLACK);
+		const whitePieces = this.pieces.filter((piece) => piece.color === Color.WHITE);
+		const blackKing = blackPieces.find((piece) => piece.type === king);
+		const whiteKing = whitePieces.find((piece) => piece.type === king);
+		if (blackKing === undefined || whiteKing === undefined) return false;
+		if (turn === Color.WHITE)
+			for (const bp of blackPieces) {
+				if (bp.moves(this).some((move) => move.equals(whiteKing.position))) {
+					return false;
+				}
+			}
+		else
+			for (const wp of whitePieces) {
+				const singleMoves = wp.moves(this);
+				const doubleMoves = wp.doubleMoves(this, singleMoves);
+				if (
+					singleMoves.some((move) => move.equals(blackKing.position)) ||
+					doubleMoves.some((move) => move.finalPosition.equals(blackKing.position))
+				) {
+					return false;
+				}
+			}
+		return true;
+	}
 }
 
 export abstract class PieceType {

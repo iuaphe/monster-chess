@@ -156,6 +156,8 @@
 		let singleMoves: Vector[] = [];
 		let doubleMoves: DoubleMove[] = [];
 
+		let checkPosition: Vector | undefined = undefined;
+
 		let halfMoves: Vector[] = [];
 		let fullMoves: Vector[] = [];
 		let halfTakes: Vector[] = [];
@@ -235,12 +237,34 @@
 						(piece.color === Color.BLACK && gameState === GameState.BLACK))
 				) {
 					selectedPiece = piece;
-					singleMoves = piece.moves(board);
-					doubleMoves = piece.doubleMoves(board, singleMoves);
 					if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
+						singleMoves = piece
+							.moves(board)
+							.filter((move) =>
+								board
+									.copyWithMove(piece.position, move)
+									.legalState(
+										gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND
+											? Color.WHITE
+											: Color.BLACK
+									)
+							);
+						doubleMoves = [];
 						[fullMoves, fullTakes] = partitionMoves(singleMoves);
 						[halfMoves, halfTakes] = [[], []];
 					} else {
+						singleMoves = piece.moves(board);
+						doubleMoves = piece
+							.doubleMoves(board, singleMoves)
+							.filter((move) =>
+								board
+									.copyWithMove(piece.position, move.finalPosition)
+									.legalState(
+										gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND
+											? Color.WHITE
+											: Color.BLACK
+									)
+							);
 						[halfMoves, halfTakes] = partitionMoves(singleMoves);
 						[fullMoves, fullTakes] = partitionMoves(doubleMoves.map((m) => m.finalPosition));
 					}
