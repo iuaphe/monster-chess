@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		pieceTypes,
-		getDoubleMoves,
 		Piece,
 		Vector,
 		knight,
@@ -11,7 +10,9 @@
 		Color,
 		rook,
 		bishop,
-		PieceType
+		PieceType,
+		Board,
+		type CandidateDoubleMove as DoubleMove
 	} from '../lib/game';
 	import { onMount } from 'svelte';
 	import '../lib/styles/global.css';
@@ -35,9 +36,6 @@
 	};
 
 	$: r = [0.4, 0.2, 0][gameState];
-
-	let turnIndicatorWhite: SVGCircleElement;
-	let turnIndicatorBlack: SVGCircleElement;
 
 	onMount(() => {
 		const BOARD_SIZE = window.innerHeight;
@@ -94,62 +92,56 @@
 			ctx.fill();
 		};
 
-		const visMoves = (single: Vector[], double: Vector[]) => {
-			single.forEach((move) => {
+		const visualizeMoves = (
+			halfMoves: Vector[],
+			fullMoves: Vector[],
+			halfTakes: Vector[],
+			fullTakes: Vector[]
+		) => {
+			halfMoves.forEach((move) => {
 				drawCircle(
 					move.x,
 					move.y,
 					TILE_SIZE / 5,
 					(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
 				);
-				if (gameState == GameState.WHITE_FIRST)
-					drawCircle(
-						move.x,
-						move.y,
-						TILE_SIZE / 10,
-						(move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5'
-					);
+				drawCircle(
+					move.x,
+					move.y,
+					TILE_SIZE / 10,
+					(move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5'
+				);
 			});
-			if (gameState == GameState.WHITE_FIRST)
-				double.forEach((move) => {
-					drawCircle(
-						move.x,
-						move.y,
-						TILE_SIZE / 5,
-						(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
-					);
-				});
-		};
-
-		const visTakes = (single: Vector[], double: Vector[]) => {
-			single.forEach((move) => {
-				if (gameState == GameState.WHITE_FIRST) {
-					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
-					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5';
-					ctx.fillRect(
-						move.x * TILE_SIZE + TILE_SIZE / 15,
-						move.y * TILE_SIZE + TILE_SIZE / 15,
-						TILE_SIZE - (2 * TILE_SIZE) / 15,
-						TILE_SIZE - (2 * TILE_SIZE) / 15
-					);
-				} else {
-					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
-					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-				}
+			fullMoves.forEach((move) => {
+				drawCircle(
+					move.x,
+					move.y,
+					TILE_SIZE / 5,
+					(move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e'
+				);
 			});
-			if (gameState == GameState.WHITE_FIRST)
-				double.forEach((move) => {
-					ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
-					ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-				});
+			halfTakes.forEach((move) => {
+				ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
+				ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+				ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#b58863' : '#f0d9b5';
+				ctx.fillRect(
+					move.x * TILE_SIZE + TILE_SIZE / 15,
+					move.y * TILE_SIZE + TILE_SIZE / 15,
+					TILE_SIZE - (2 * TILE_SIZE) / 15,
+					TILE_SIZE - (2 * TILE_SIZE) / 15
+				);
+			});
+			fullTakes.forEach((move) => {
+				ctx.fillStyle = (move.x + move.y) % 2 == 1 ? '#6e533c' : '#92846e';
+				ctx.fillRect(move.x * TILE_SIZE, move.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+			});
 		};
 
 		const range = (from: number, to: number): number[] => {
 			return [...Array(to - from).keys()].map((x) => x + from);
 		};
 
-		const pieces = [
+		const board = new Board([
 			...range(0, 8).map((x) => new Piece(pawn, Color.BLACK, new Vector(x, 1))),
 			...[rook, knight, bishop, queen, king, bishop, knight, rook].map(
 				(type, x) => new Piece(type, Color.BLACK, new Vector(x, 0))
@@ -157,13 +149,17 @@
 
 			...range(2, 6).map((x) => new Piece(pawn, Color.WHITE, new Vector(x, 6))),
 			new Piece(king, Color.WHITE, new Vector(4, 7))
-		];
+		]);
 
 		let selectedPiece: Piece | undefined = undefined;
-		let selectedMovesSingle: Vector[] | undefined = undefined;
-		let selectedMovesDouble: Vector[] | undefined = undefined;
-		let selectedTakesSingle: Vector[] | undefined = undefined;
-		let selectedTakesDouble: Vector[] | undefined = undefined;
+
+		let singleMoves: Vector[] = [];
+		let doubleMoves: DoubleMove[] = [];
+
+		let halfMoves: Vector[] = [];
+		let fullMoves: Vector[] = [];
+		let halfTakes: Vector[] = [];
+		let fullTakes: Vector[] = [];
 		let lastMove: [Vector, Vector] | undefined = undefined;
 
 		const update = () => {
@@ -185,10 +181,9 @@
 			// 	});
 			// }
 			if (selectedPiece !== undefined) {
-				visMoves(selectedMovesSingle!, selectedMovesDouble!);
-				visTakes(selectedTakesSingle!, selectedTakesDouble!);
+				visualizeMoves(halfMoves!, fullMoves!, halfTakes!, fullTakes!);
 			}
-			pieces.forEach((piece) => {
+			board.pieces.forEach((piece) => {
 				if (piece !== selectedPiece)
 					ctx.drawImage(
 						getImage(piece),
@@ -217,7 +212,7 @@
 			const moveMoves: Vector[] = []; // todo: less lame name
 			const takes: Vector[] = [];
 			moves.forEach((move) => {
-				if (pieces.some((piece) => piece.position.equals(move))) {
+				if (board.pieces.some((piece) => piece.position.equals(move))) {
 					takes.push(move);
 				} else {
 					moveMoves.push(move);
@@ -232,7 +227,7 @@
 					Math.floor(event.offsetX / TILE_SIZE),
 					Math.floor(event.offsetY / TILE_SIZE)
 				);
-				const piece = pieces.find((piece) => piece.position.equals(tile));
+				const piece = board.pieceAt(tile);
 				if (
 					piece !== undefined &&
 					((piece.color === Color.WHITE &&
@@ -240,11 +235,17 @@
 						(piece.color === Color.BLACK && gameState === GameState.BLACK))
 				) {
 					selectedPiece = piece;
-					const moves = getDoubleMoves(selectedPiece, pieces);
-					[selectedMovesSingle, selectedTakesSingle] = partitionMoves(moves.single);
-					[selectedMovesDouble, selectedTakesDouble] = partitionMoves(moves.double);
+					singleMoves = piece.moves(board);
+					doubleMoves = piece.doubleMoves(board, singleMoves);
+					if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
+						[fullMoves, fullTakes] = partitionMoves(singleMoves);
+						[halfMoves, halfTakes] = [[], []];
+					} else {
+						[halfMoves, halfTakes] = partitionMoves(singleMoves);
+						[fullMoves, fullTakes] = partitionMoves(doubleMoves.map((m) => m.finalPosition));
+					}
 				} else if (boardMode === BoardMode.EDIT) {
-					pieces.push(new Piece(pieceTypes[selectedEditPiece], selectedColor, tile));
+					board.pieces.push(new Piece(pieceTypes[selectedEditPiece], selectedColor, tile));
 				}
 			} else if (event.button === 2) {
 				selectedPiece = undefined;
@@ -262,24 +263,29 @@
 					Math.floor(event.offsetX / TILE_SIZE),
 					Math.floor(event.offsetY / TILE_SIZE)
 				);
-				const singleMove = selectedMovesSingle!.some((m) => m.equals(tile));
-				const doubleMove = selectedMovesDouble!.some((m) => m.equals(tile));
-				const singleTake = selectedTakesSingle!.some((m) => m.equals(tile));
-				const doubleTake = selectedTakesDouble!.some((m) => m.equals(tile));
-				if (
-					!tile.equals(selectedPiece.position) &&
-					(singleMove || doubleMove || singleTake || doubleTake)
-				) {
-					lastMove = [selectedPiece.position, tile];
-					if (singleTake || doubleTake) {
-						const pieceAt = pieces.find((piece) => piece.position.equals(tile))!;
-						pieces.splice(pieces.indexOf(pieceAt), 1);
+				if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
+					const singleMove = singleMoves.find((move) => move.equals(tile));
+					if (singleMove !== undefined) {
+						board.move(selectedPiece.position, singleMove);
+						gameState++;
 					}
-					selectedPiece.position = tile;
-					gameState++;
-					if (doubleMove || doubleTake) gameState++;
-					gameState %= 3;
+				} else {
+					const singleMove = singleMoves.find((move) => move.equals(tile));
+					const doubleMove = doubleMoves.find((move) => move.finalPosition.equals(tile));
+					if (singleMove !== undefined) {
+						board.move(selectedPiece.position, singleMove);
+						gameState++;
+					} else if (doubleMove !== undefined) {
+						if (doubleMove.takes !== undefined) {
+							board.move(selectedPiece.position, doubleMove.takes);
+							board.move(doubleMove.takes, doubleMove.finalPosition);
+						} else {
+							board.move(selectedPiece.position, doubleMove.finalPosition);
+						}
+						gameState += 2;
+					}
 				}
+				gameState %= 3;
 				selectedPiece = undefined;
 			}
 		});
@@ -363,8 +369,8 @@
 		/>
 		<div class="turn-indicator" on:click={nextGameState} on:keydown={nextGameState}>
 			<svg viewBox="0 0 1 1">
-				<circle cx="0.5" cy="0.5" r="0.4" fill="black" bind:this={turnIndicatorBlack} />
-				<circle cx="0.5" cy="0.5" {r} fill="white" bind:this={turnIndicatorWhite} />
+				<circle cx="0.5" cy="0.5" r="0.4" fill="black" />
+				<circle cx="0.5" cy="0.5" {r} fill="white" />
 			</svg>
 		</div>
 	</div>

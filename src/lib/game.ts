@@ -6,8 +6,47 @@ export class Vector {
 	addVec(other: Vector) {
 		return this.add(other.x, other.y);
 	}
+	set(other: Vector): void {
+		this.x = other.x;
+		this.y = other.y;
+	}
+	copy() {
+		return new Vector(this.x, this.y);
+	}
 	equals(other: Vector) {
 		return this.x === other.x && this.y === other.y;
+	}
+}
+
+export class Board {
+	constructor(public pieces: Piece[]) {}
+
+	pieceAt(v: Vector): Piece | undefined {
+		return this.pieces.find((piece) => piece.position.equals(v));
+	}
+
+	removePiece(piece: Piece) {
+		const index = this.pieces.indexOf(piece);
+		if (index === -1) throw new Error('removePiece run on missing piece.');
+		else this.pieces.splice(index, 1);
+	}
+
+	move(from: Vector, to: Vector) {
+		const capturingPiece = this.pieceAt(to);
+		if (capturingPiece !== undefined) {
+			this.removePiece(capturingPiece);
+		}
+		this.pieceAt(from)!.position.set(to);
+	}
+
+	copy(): Board {
+		return new Board(this.pieces.map((piece) => piece.copy()));
+	}
+
+	copyWithMove(from: Vector, to: Vector) {
+		const board = this.copy();
+		board.move(from, to);
+		return board;
 	}
 }
 
@@ -84,23 +123,6 @@ const repeatSymmetric = (
 	// todo: take out the redundant combinations so we don't have to uniqueify
 	// e.g., (0, 1) == (-0, 1)
 	return uniqueVectors(result);
-};
-
-export const getDoubleMoves = (
-	piece: Piece,
-	board: Piece[]
-): { single: Vector[]; double: Vector[] } => {
-	const moves = piece.type.moves(piece.position, board, piece.color);
-	const doubleMoves = uniqueVectors(
-		moves.flatMap((move) => piece.type.moves(move, board, piece.color))
-	);
-	let doubleMovesWithoutSingle = [];
-	for (const move of doubleMoves)
-		if (!moves.some((v) => move.equals(v))) doubleMovesWithoutSingle.push(move);
-	return {
-		single: moves,
-		double: doubleMovesWithoutSingle.filter((m) => !m.equals(piece.position))
-	};
 };
 
 class King extends PieceType {
@@ -182,8 +204,80 @@ class Pawn extends PieceType {
 }
 export const pawn = new Pawn();
 
+export type CandidateDoubleMove = {
+	finalPosition: Vector;
+	takes?: Vector;
+};
+
 export class Piece {
 	constructor(public type: PieceType, public color: Color, public position: Vector) {}
+	moves(board: Board) {
+		return this.type.moves(this.position, board.pieces, this.color);
+	}
+	doubleMoves(board: Board, singleMoves: Vector[]) {
+		const candidateDoubleMoves = singleMoves.flatMap((singleMove) => {
+			const takes = board.pieceAt(singleMove)?.position;
+			const newBoard = board.copyWithMove(this.position, singleMove);
+			console.log(singleMove);
+			const newPiece = newBoard.pieceAt(singleMove)!;
+			return newPiece.moves(newBoard).map(
+				(secondMove) =>
+					({
+						finalPosition: secondMove,
+						takes
+					} as CandidateDoubleMove)
+			);
+		});
+		const uniqueCandidates: CandidateDoubleMove[] = [];
+		candidateDoubleMoves.forEach((cdm) => {
+			// lol
+			if (
+				!uniqueCandidates.some(
+					(otherCdm) =>
+						cdm.finalPosition.equals(otherCdm.finalPosition) &&
+						((cdm.takes === undefined && otherCdm.takes === undefined) ||
+							(cdm.takes !== undefined &&
+								otherCdm.takes !== undefined &&
+								cdm.takes.equals(otherCdm.takes)))
+				)
+			) {
+				uniqueCandidates.push(cdm);
+			}
+		});
+		const uniqueFinalPositions: Vector[] = [];
+		const correspondingCandidates: CandidateDoubleMove[][] = [];
+		for (const candidate of uniqueCandidates) {
+			const matchingFinal = uniqueFinalPositions.find((fp) => fp.equals(candidate.finalPosition));
+			if (matchingFinal === undefined) {
+				uniqueFinalPositions.push(candidate.finalPosition);
+				correspondingCandidates.push([candidate]);
+			} else {
+				correspondingCandidates[uniqueFinalPositions.indexOf(matchingFinal)].push(candidate);
+			}
+		}
+		return correspondingCandidates
+			.filter((cc) => cc.filter((c) => c.takes !== undefined).length <= 1)
+			.flat()
+			.filter((dm) => !singleMoves.some((sm) => sm.equals(dm.finalPosition)))
+			.filter((dm) => !dm.finalPosition.equals(this.position));
+	}
+	copy(): Piece {
+		return new Piece(this.type, this.color, this.position.copy());
+	}
 }
+
+// const uniqueBy = <T, U extends { equals: (t: U) => boolean }>(ts: T[], getKey: (t: T) => U) => {
+// 	const uniques: { t: T; key: U }[] = [];
+// 	ts.forEach((t) => {
+// 		const key = getKey(t);
+// 		if (!uniques.some((obj) => obj.key.equals(key))) {
+// 			uniques.push({
+// 				t,
+// 				key
+// 			});
+// 		}
+// 	});
+// 	return uniques.map((obj) => obj.t);
+// };
 
 export const pieceTypes = [king, rook, knight, queen, bishop, pawn];
