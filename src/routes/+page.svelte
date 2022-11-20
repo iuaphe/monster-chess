@@ -22,20 +22,20 @@
 
 	let canvas: HTMLCanvasElement;
 
-	enum GameState {
+	enum TurnState {
 		WHITE_FIRST,
 		WHITE_SECOND,
 		BLACK
 	}
 
-	let gameState = GameState.WHITE_FIRST;
+	let turnState = TurnState.WHITE_FIRST;
 
-	const nextGameState = () => {
-		gameState++;
-		gameState %= 3;
+	const nextTurnState = () => {
+		turnState++;
+		turnState %= 3;
 	};
 
-	$: r = [0.4, 0.2, 0][gameState];
+	$: r = [0.4, 0.2, 0][turnState];
 
 	onMount(() => {
 		const BOARD_SIZE = window.innerHeight;
@@ -141,7 +141,7 @@
 			return [...Array(to - from).keys()].map((x) => x + from);
 		};
 
-		const board = new Board([
+		let board = new Board([
 			...range(0, 8).map((x) => new Piece(pawn, Color.BLACK, new Vector(x, 1))),
 			...[rook, knight, bishop, queen, king, bishop, knight, rook].map(
 				(type, x) => new Piece(type, Color.BLACK, new Vector(x, 0))
@@ -150,6 +150,30 @@
 			...range(2, 6).map((x) => new Piece(pawn, Color.WHITE, new Vector(x, 6))),
 			new Piece(king, Color.WHITE, new Vector(4, 7))
 		]);
+
+		type GameState = {
+			turnState: TurnState;
+			board: Board;
+		};
+
+		let currentGameState = 0;
+		let previousGameStates: GameState[] = [
+			{
+				turnState,
+				board: board.copy()
+			}
+		];
+
+		const pushBoardState = () => {
+			if (currentGameState < previousGameStates.length - 1) {
+				previousGameStates.splice(0, currentGameState + 1);
+			}
+			previousGameStates.push({
+				turnState,
+				board: board.copy()
+			});
+			currentGameState++;
+		};
 
 		let selectedPiece: Piece | undefined = undefined;
 
@@ -233,18 +257,18 @@
 				if (
 					piece !== undefined &&
 					((piece.color === Color.WHITE &&
-						(gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND)) ||
-						(piece.color === Color.BLACK && gameState === GameState.BLACK))
+						(turnState === TurnState.WHITE_FIRST || turnState === TurnState.WHITE_SECOND)) ||
+						(piece.color === Color.BLACK && turnState === TurnState.BLACK))
 				) {
 					selectedPiece = piece;
-					if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
+					if (turnState === TurnState.WHITE_SECOND || turnState === TurnState.BLACK) {
 						singleMoves = piece
 							.moves(board)
 							.filter((move) =>
 								board
 									.copyWithMove(piece.position, move)
 									.legalState(
-										gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND
+										turnState === TurnState.WHITE_FIRST || turnState === TurnState.WHITE_SECOND
 											? Color.WHITE
 											: Color.BLACK
 									)
@@ -260,7 +284,7 @@
 								board
 									.copyWithMove(piece.position, move.finalPosition)
 									.legalState(
-										gameState === GameState.WHITE_FIRST || gameState === GameState.WHITE_SECOND
+										turnState === TurnState.WHITE_FIRST || turnState === TurnState.WHITE_SECOND
 											? Color.WHITE
 											: Color.BLACK
 									)
@@ -283,22 +307,25 @@
 
 		canvas.addEventListener('mouseup', (event) => {
 			if (selectedPiece !== undefined) {
+				let moved = false;
 				const tile = new Vector(
 					Math.floor(event.offsetX / TILE_SIZE),
 					Math.floor(event.offsetY / TILE_SIZE)
 				);
-				if (gameState === GameState.WHITE_SECOND || gameState === GameState.BLACK) {
+				if (turnState === TurnState.WHITE_SECOND || turnState === TurnState.BLACK) {
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					if (singleMove !== undefined) {
 						board.move(selectedPiece.position, singleMove);
-						gameState++;
+						turnState++;
+						pushBoardState();
 					}
 				} else {
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					const doubleMove = doubleMoves.find((move) => move.finalPosition.equals(tile));
 					if (singleMove !== undefined) {
 						board.move(selectedPiece.position, singleMove);
-						gameState++;
+						turnState++;
+						pushBoardState();
 					} else if (doubleMove !== undefined) {
 						if (doubleMove.takes !== undefined) {
 							board.move(selectedPiece.position, doubleMove.takes);
@@ -306,10 +333,11 @@
 						} else {
 							board.move(selectedPiece.position, doubleMove.finalPosition);
 						}
-						gameState += 2;
+						turnState += 2;
+						pushBoardState();
 					}
 				}
-				gameState %= 3;
+				turnState %= 3;
 				selectedPiece = undefined;
 			}
 		});
@@ -322,15 +350,19 @@
 		});
 
 		document.addEventListener('keydown', (event) => {
-			// if (event.key === 'ArrowLeft') {
-			// 	pieceIndex--;
-			// 	if (pieceIndex < 0) pieceIndex += pieceTypes.length;
-			// 	thePiece.type = pieceTypes[pieceIndex];
-			// } else if (event.key === 'ArrowRight') {
-			// 	pieceIndex++;
-			// 	pieceIndex %= pieceTypes.length;
-			// 	thePiece.type = pieceTypes[pieceIndex];
-			// }
+			if (event.key === 'ArrowLeft') {
+				if (currentGameState > 0) {
+					currentGameState--;
+					board = previousGameStates[currentGameState].board.copy();
+					turnState = previousGameStates[currentGameState].turnState;
+				}
+			} else if (event.key === 'ArrowRight') {
+				if (currentGameState < previousGameStates.length - 1) {
+					currentGameState++;
+					board = previousGameStates[currentGameState].board.copy();
+					turnState = previousGameStates[currentGameState].turnState;
+				}
+			}
 		});
 	});
 
@@ -391,7 +423,7 @@
 			on:mousedown={toggleMode}
 			on:keydown={toggleMode}
 		/>
-		<div class="turn-indicator" on:click={nextGameState} on:keydown={nextGameState}>
+		<div class="turn-indicator" on:click={nextTurnState} on:keydown={nextTurnState}>
 			<svg viewBox="0 0 1 1">
 				<circle cx="0.5" cy="0.5" r="0.4" fill="black" />
 				<circle cx="0.5" cy="0.5" {r} fill="white" />
