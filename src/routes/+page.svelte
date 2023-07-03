@@ -62,11 +62,22 @@
 		new Piece(rook, Color.WHITE, new Vector(5, 7))
 	]);
 
+	const randomID = (length: number): string => {
+		let result = '';
+		const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		const charactersLength = characters.length;
+		for (let i = 0; i < length; i++) {
+			result += characters.charAt(Math.floor(Math.random() * charactersLength));
+		}
+		return result;
+	};
+
 	onMount(async () => {
 		room = window.location.hash;
 
 		if (room === '') {
-			room = Math.floor(Math.random() * 1000000).toString(16);
+			room = randomID(8).toString();
+			window.location.hash = `#${room}`;
 		} else {
 			room = room.slice(1);
 		}
@@ -119,10 +130,15 @@
 />
 
 {#if status === ConnectionStatus.CONNECTING}
-	<div class="status">Connecting...</div>
+	<div class="status">
+		<p>Connecting...</p>
+	</div>
 {:else if status === ConnectionStatus.WAITING}
 	<div class="status">
-		Waiting for opponent... Send them this link: <a href="{base}#{room}">{`${base}#${room}`}</a>
+		<p>Waiting for an opponent...</p>
+		<p>
+			Send them this link: <a href="{base}#{room}">{`${base}#${room}`}</a>
+		</p>
 	</div>
 {:else if status === ConnectionStatus.CONNECTED}
 	<BoardUi
@@ -133,12 +149,12 @@
 		interactive={lookback == 0}
 		perspective={playingColor}
 	/>
-{/if}
-<div class="toolbar">
-	<div class="turn-indicator">
-		<svg viewBox="0 0 1 1">
-			<circle cx="0.5" cy="0.5" r="0.4" fill="black" />
-			<circle cx="0.5" cy="0.5" {r} fill="white" />
-		</svg>
+	<div class="toolbar">
+		<div class="turn-indicator">
+			<svg viewBox="0 0 1 1">
+				<circle cx="0.5" cy="0.5" r="0.4" fill="black" />
+				<circle cx="0.5" cy="0.5" {r} fill="white" />
+			</svg>
+		</div>
 	</div>
-</div>
+{/if}

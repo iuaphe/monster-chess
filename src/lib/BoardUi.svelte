@@ -195,8 +195,7 @@
 		};
 
 		canvas.addEventListener('mousedown', (event) => {
-			if (!interactive) return;
-			if (currentGameState === GameState.PLAYING) {
+			if (currentGameState === GameState.PLAYING && interactive) {
 				if (event.button === 0) {
 					const tile = new Vector(
 						Math.floor((event.offsetX * (canvas.width / canvas.clientWidth)) / TILE_SIZE),
@@ -209,7 +208,8 @@
 						piece !== undefined &&
 						((piece.color === Color.WHITE &&
 							(currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND)) ||
-							(piece.color === Color.BLACK && currentTurn === Turn.BLACK))
+							(piece.color === Color.BLACK && currentTurn === Turn.BLACK)) &&
+						perspective === piece.color
 					) {
 						selectedPiece = piece;
 						if (currentTurn === Turn.WHITE_SECOND || currentTurn === Turn.BLACK) {
