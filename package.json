@@ -30,6 +30,8 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@sveltejs/adapter-static": "^1.0.0-next.48"
+		"@sveltejs/adapter-static": "^1.0.0-next.48",
+		"@types/peerjs": "^1.1.0",
+		"peerjs": "^1.4.7"
 	}
 }

@@ -1,11 +1,13 @@
 body {
 	margin: 0;
 	background-color: rgb(40, 40, 40);
+	font-family: 'Ubuntu', sans-serif;
 }
 
 canvas {
 	display: block;
 	margin: auto;
+	height: 100vh;
 }
 
 .toolbar {
@@ -33,4 +35,8 @@ canvas {
 
 .turn-indicator circle {
 	transition: r 1s;
+}
+
+.status {
+	color: white;
 }

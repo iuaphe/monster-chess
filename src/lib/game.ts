@@ -240,11 +240,10 @@ export class Piece {
 	moves(board: Board) {
 		return this.type.moves(this.position, board.pieces, this.color);
 	}
-	doubleMoves(board: Board, singleMoves: Vector[]) {
+	doubleMoves(board: Board, singleMoves: Vector[], nonAmbiguous = false) {
 		const candidateDoubleMoves = singleMoves.flatMap((singleMove) => {
 			const takes = board.pieceAt(singleMove)?.position;
 			const newBoard = board.copyWithMove(this.position, singleMove);
-			console.log(singleMove);
 			const newPiece = newBoard.pieceAt(singleMove)!;
 			return newPiece.moves(newBoard).map(
 				(secondMove) =>
@@ -281,8 +280,10 @@ export class Piece {
 				correspondingCandidates[uniqueFinalPositions.indexOf(matchingFinal)].push(candidate);
 			}
 		}
-		return correspondingCandidates
-			.filter((cc) => cc.filter((c) => c.takes !== undefined).length <= 1)
+		const finalCC = nonAmbiguous
+			? correspondingCandidates.filter((cc) => cc.filter((c) => c.takes !== undefined).length <= 1)
+			: correspondingCandidates;
+		return finalCC
 			.flat()
 			.filter((dm) => !singleMoves.some((sm) => sm.equals(dm.finalPosition)))
 			.filter((dm) => !dm.finalPosition.equals(this.position));
@@ -292,18 +293,36 @@ export class Piece {
 	}
 }
 
-// const uniqueBy = <T, U extends { equals: (t: U) => boolean }>(ts: T[], getKey: (t: T) => U) => {
-// 	const uniques: { t: T; key: U }[] = [];
-// 	ts.forEach((t) => {
-// 		const key = getKey(t);
-// 		if (!uniques.some((obj) => obj.key.equals(key))) {
-// 			uniques.push({
-// 				t,
-// 				key
-// 			});
-// 		}
-// 	});
-// 	return uniques.map((obj) => obj.t);
-// };
+export const hasCheckmate = (board: Board, turn: Color): boolean => {
+	const pieces = board.pieces.filter((piece) => piece.color === turn);
+	console.log(pieces);
+	return pieces.every((piece) => {
+		switch (piece.color) {
+			case Color.WHITE:
+				return legalDoubleMoves(piece, board, turn).length === 0;
+			case Color.BLACK:
+				return legalSingleMoves(piece, board, turn).length === 0;
+		}
+	});
+};
+
+const legalSingleMoves = (piece: Piece, board: Board, turn: Color): Vector[] =>
+	piece.moves(board).filter((move) => board.copyWithMove(piece.position, move).legalState(turn));
+
+const legalDoubleMoves = (piece: Piece, board: Board, turn: Color): CandidateDoubleMove[] =>
+	piece
+		.doubleMoves(board, piece.moves(board))
+		.filter((move) => board.copyWithMove(piece.position, move.finalPosition).legalState(turn));
 
 export const pieceTypes = [king, rook, knight, queen, bishop, pawn];
+
+export enum GameState {
+	PLAYING,
+	ENDED
+}
+
+export enum Turn {
+	WHITE_FIRST,
+	WHITE_SECOND,
+	BLACK
+}
