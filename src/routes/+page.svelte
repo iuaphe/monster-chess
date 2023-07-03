@@ -58,8 +58,7 @@
 		),
 
 		...range(2, 6).map((x) => new Piece(pawn, Color.WHITE, new Vector(x, 6))),
-		new Piece(king, Color.WHITE, new Vector(4, 7)),
-		new Piece(rook, Color.WHITE, new Vector(5, 7))
+		new Piece(king, Color.WHITE, new Vector(4, 7))
 	]);
 
 	const randomID = (length: number): string => {
@@ -108,8 +107,8 @@
 	let lookback = 0;
 	$: viewingBoard = lookback == 0 ? board : previousBoards[previousBoards.length - lookback];
 
-	const onUIMove = (move: [Vector, Vector], numMoves: number) => {
-		handleMove(move, (currentTurn + numMoves) % 3);
+	const onUIMove = (move: [Vector, Vector]) => {
+		handleMove(move, (currentTurn + 1) % 3);
 		connection.sendMove(move, currentTurn);
 	};
 

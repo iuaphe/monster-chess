@@ -9,3 +9,4 @@ https://acou12.github.io/monster-chess
 - Tolerance to mid-game disconnections.
 - Engine?
 - Board editor/board codes
+- Choice of promotion piece

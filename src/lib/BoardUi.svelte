@@ -25,7 +25,7 @@
 		return perspective === Color.WHITE ? y : 7 - y;
 	};
 
-	export let onMove: (move: [Vector, Vector], numMoves: number) => void;
+	export let onMove: (move: [Vector, Vector]) => void;
 
 	let canvas: HTMLCanvasElement;
 
@@ -194,114 +194,107 @@
 			return [moveMoves, takes];
 		};
 
-		canvas.addEventListener('mousedown', (event) => {
+		const onMouseDown = (pos: [number, number]) => {
 			if (currentGameState === GameState.PLAYING && interactive) {
-				if (event.button === 0) {
-					const tile = new Vector(
-						Math.floor((event.offsetX * (canvas.width / canvas.clientWidth)) / TILE_SIZE),
-						transformTileY(
-							Math.floor((event.offsetY * (canvas.height / canvas.clientHeight)) / TILE_SIZE)
-						)
-					);
-					const piece = board.pieceAt(tile);
-					if (
-						piece !== undefined &&
-						((piece.color === Color.WHITE &&
-							(currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND)) ||
-							(piece.color === Color.BLACK && currentTurn === Turn.BLACK)) &&
-						perspective === piece.color
-					) {
-						selectedPiece = piece;
-						if (currentTurn === Turn.WHITE_SECOND || currentTurn === Turn.BLACK) {
-							singleMoves = piece
-								.moves(board)
-								.filter((move) =>
-									board
-										.copyWithMove(piece.position, move)
-										.legalState(
-											currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND
-												? Color.WHITE
-												: Color.BLACK
-										)
-								);
-							doubleMoves = [];
-							[fullMoves, fullTakes] = partitionMoves(singleMoves);
-							[halfMoves, halfTakes] = [[], []];
-						} else {
-							singleMoves = piece.moves(board);
-							doubleMoves = piece
-								.doubleMoves(board, singleMoves, true)
-								.filter((move) =>
-									board
-										.copyWithMove(piece.position, move.finalPosition)
-										.legalState(
-											currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND
-												? Color.WHITE
-												: Color.BLACK
-										)
-								);
-							[halfMoves, halfTakes] = partitionMoves(singleMoves);
-							[fullMoves, fullTakes] = partitionMoves(doubleMoves.map((m) => m.finalPosition));
-						}
+				const tile = new Vector(
+					Math.floor((pos[0] * (canvas.width / canvas.clientWidth)) / TILE_SIZE),
+					transformTileY(Math.floor((pos[1] * (canvas.height / canvas.clientHeight)) / TILE_SIZE))
+				);
+				const piece = board.pieceAt(tile);
+				if (
+					piece !== undefined &&
+					((piece.color === Color.WHITE &&
+						(currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND)) ||
+						(piece.color === Color.BLACK && currentTurn === Turn.BLACK)) &&
+					perspective === piece.color
+				) {
+					selectedPiece = piece;
+					if (currentTurn === Turn.WHITE_SECOND || currentTurn === Turn.BLACK) {
+						singleMoves = piece
+							.moves(board)
+							.filter((move) =>
+								board
+									.copyWithMove(piece.position, move)
+									.legalState(
+										currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND
+											? Color.WHITE
+											: Color.BLACK
+									)
+							);
+						doubleMoves = [];
+						[fullMoves, fullTakes] = partitionMoves(singleMoves);
+						[halfMoves, halfTakes] = [[], []];
+					} else {
+						singleMoves = piece.moves(board);
+						doubleMoves = piece
+							.doubleMoves(board, singleMoves, true)
+							.filter((move) =>
+								board
+									.copyWithMove(piece.position, move.finalPosition)
+									.legalState(
+										currentTurn === Turn.WHITE_FIRST || currentTurn === Turn.WHITE_SECOND
+											? Color.WHITE
+											: Color.BLACK
+									)
+							);
+						[halfMoves, halfTakes] = partitionMoves(singleMoves);
+						[fullMoves, fullTakes] = partitionMoves(doubleMoves.map((m) => m.finalPosition));
 					}
-				} else if (event.button === 2) {
-					selectedPiece = undefined;
 				}
 			}
-		});
+		};
 
-		canvas.addEventListener('mouseup', (event) => {
+		canvas.addEventListener('mousedown', (e) => onMouseDown([e.offsetX, e.offsetY]));
+		canvas.addEventListener('touchstart', (e) =>
+			onMouseDown([e.touches[0].clientX, e.touches[0].clientY])
+		);
+
+		const onMouseUp = (pos: [number, number]) => {
 			if (selectedPiece !== undefined) {
 				const tile = new Vector(
-					Math.floor((event.offsetX * (canvas.width / canvas.clientWidth)) / TILE_SIZE),
-					transformTileY(
-						Math.floor((event.offsetY * (canvas.height / canvas.clientHeight)) / TILE_SIZE)
-					)
+					Math.floor((pos[0] * (canvas.width / canvas.clientWidth)) / TILE_SIZE),
+					transformTileY(Math.floor((pos[1] * (canvas.height / canvas.clientHeight)) / TILE_SIZE))
 				);
 				if (currentTurn === Turn.WHITE_SECOND || currentTurn === Turn.BLACK) {
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					if (singleMove !== undefined) {
-						const move: [Vector, Vector] = [selectedPiece.position.copy(), singleMove.copy()];
-						onMove(move, 1);
+						onMove([selectedPiece.position.copy(), singleMove.copy()]);
 					}
 				} else {
 					const singleMove = singleMoves.find((move) => move.equals(tile));
 					const doubleMove = doubleMoves.find((move) => move.finalPosition.equals(tile));
 					if (singleMove !== undefined) {
-						const move: [Vector, Vector] = [selectedPiece.position.copy(), singleMove.copy()];
-						onMove(move, 1);
+						onMove([selectedPiece.position.copy(), singleMove.copy()]);
 					} else if (doubleMove !== undefined) {
 						if (doubleMove.takes !== undefined) {
-							const firstMove: [Vector, Vector] = [
-								selectedPiece.position.copy(),
-								doubleMove.takes.copy()
-							];
-							onMove(firstMove, 1);
-
-							const secondMove: [Vector, Vector] = [
-								doubleMove.takes.copy(),
-								doubleMove.finalPosition.copy()
-							];
-							onMove(secondMove, 1);
+							onMove([selectedPiece.position.copy(), doubleMove.takes.copy()]);
+							onMove([doubleMove.takes.copy(), doubleMove.finalPosition.copy()]);
 						} else {
-							const move: [Vector, Vector] = [
-								selectedPiece.position.copy(),
-								doubleMove.finalPosition.copy()
-							];
-							onMove(move, 2);
+							onMove([selectedPiece.position.copy(), doubleMove.singleMove.copy()]);
+							onMove([doubleMove.singleMove.copy(), doubleMove.finalPosition.copy()]);
 						}
 					}
 				}
 				selectedPiece = undefined;
 			}
+		};
+
+		canvas.addEventListener('mouseup', (e) => onMouseUp([e.offsetX, e.offsetY]));
+		canvas.addEventListener('touchend', (e) => {
+			onMouseUp([e.changedTouches[0].clientX, e.changedTouches[0].clientY]);
 		});
 
 		canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
-		document.addEventListener('mousemove', (event) => {
-			mousePosition.x = event.offsetX * (canvas.width / canvas.clientWidth);
-			mousePosition.y = event.offsetY * (canvas.height / canvas.clientHeight);
-		});
+		const onMouseMove = (pos: [number, number]) => {
+			mousePosition.x = pos[0] * (canvas.width / canvas.clientWidth);
+			mousePosition.y = pos[1] * (canvas.height / canvas.clientHeight);
+		};
+
+		document.addEventListener('mousemove', (event) => onMouseMove([event.offsetX, event.offsetY]));
+		document.addEventListener('touchmove', (event) =>
+			onMouseMove([event.touches[0].clientX, event.touches[0].clientY])
+		);
 	});
 </script>
 

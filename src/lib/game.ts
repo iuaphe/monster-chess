@@ -36,7 +36,14 @@ export class Board {
 		if (capturingPiece !== undefined) {
 			this.removePiece(capturingPiece);
 		}
-		this.pieceAt(from)!.position.set(to);
+		const fromPiece = this.pieceAt(from)!;
+		fromPiece.position.set(to);
+		if (
+			fromPiece.type === pawn &&
+			fromPiece.position.y === (fromPiece.color === Color.WHITE ? 0 : 7)
+		) {
+			fromPiece.type = queen;
+		}
 	}
 
 	copy(): Board {
@@ -232,6 +239,7 @@ export const pawn = new Pawn();
 
 export type CandidateDoubleMove = {
 	finalPosition: Vector;
+	singleMove: Vector;
 	takes?: Vector;
 };
 
@@ -249,23 +257,20 @@ export class Piece {
 				(secondMove) =>
 					({
 						finalPosition: secondMove,
+						singleMove,
 						takes
 					} as CandidateDoubleMove)
 			);
 		});
 		const uniqueCandidates: CandidateDoubleMove[] = [];
+		const candidatesEqual = (a: CandidateDoubleMove, b: CandidateDoubleMove) => {
+			a.finalPosition.equals(b.finalPosition) &&
+				a.singleMove.equals(b.singleMove) &&
+				((a.takes === undefined && b.takes === undefined) ||
+					(a.takes !== undefined && b.takes !== undefined && a.takes.equals(b.takes)));
+		};
 		candidateDoubleMoves.forEach((cdm) => {
-			// lol
-			if (
-				!uniqueCandidates.some(
-					(otherCdm) =>
-						cdm.finalPosition.equals(otherCdm.finalPosition) &&
-						((cdm.takes === undefined && otherCdm.takes === undefined) ||
-							(cdm.takes !== undefined &&
-								otherCdm.takes !== undefined &&
-								cdm.takes.equals(otherCdm.takes)))
-				)
-			) {
+			if (!uniqueCandidates.some((otherCandidate) => candidatesEqual(cdm, otherCandidate))) {
 				uniqueCandidates.push(cdm);
 			}
 		});
