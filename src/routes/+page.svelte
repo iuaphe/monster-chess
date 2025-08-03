@@ -29,7 +29,7 @@
 	let connection: Connection;
 	let status: ConnectionStatus = ConnectionStatus.CONNECTING;
 
-	const base = 'https://acou12.github.io/monster-chess';
+	const base = 'https://iuaphe.github.io/monster-chess';
 	let room: string;
 
 	const range = (from: number, to: number): number[] => {

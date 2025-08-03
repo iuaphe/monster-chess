@@ -2,7 +2,7 @@
 
 A chess variant in which white can move twice, but is at a large material disadvantage.
 
-https://acou12.github.io/monster-chess
+https://iuaphe.github.io/monster-chess
 
 ## Todo
 
